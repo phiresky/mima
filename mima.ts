@@ -19,7 +19,7 @@ class MimaCommand {
 		new MimaCommand("STIV", (m, v) => m.mem[m.mem[v]] = m.akku),
 	];
 	public static fCommands = [
-		new MimaCommand("HLT", (m, v) => {m.running = false;m.pointer--;}),
+		new MimaCommand("HLT", (m, v) => { m.running = false; m.pointer--; }),
 		new MimaCommand("NOT", (m, v) => m.akku = ~m.akku),
 		new MimaCommand("RAR", (m, v) => m.akku = ((m.akku >>> 1) | (m.akku << (23))) & (0xFFFFFF)),
 	];
@@ -43,8 +43,8 @@ class Mima {
 	finishCallback; stepCallback; logCallback;
 	mem: number[];
 	srcMap;
-	public static MAX_RUNTIME = 20000;
-	constructor(data: { start: number; mem: number[]; srcMap;finishCallback: () => void; stepCallback: () => void; logCallback: (message: string, pos?: number) => void }) {
+	public static MAX_RUNTIME = 10000;
+	constructor(data: { start: number; mem: number[]; srcMap; finishCallback: () => void; stepCallback: () => void; logCallback: (message: string, pos?: number) => void }) {
 		this.mem = data.mem;
 		this.srcMap = data.srcMap;
 		this.pointer = data.start;
@@ -53,8 +53,7 @@ class Mima {
 		this.logCallback = data.logCallback;
 	}
 
-	public run(delay: number) {
-		
+	public run(async: boolean, delay?: number) {
 		this.running = true;
 		var m = this;
 		function tryStep() {
@@ -62,7 +61,11 @@ class Mima {
 				m.step();
 			} catch (e) { console.log(e.stack); m.logCallback(e.stack || e); }
 		}
-		this.intervalID = setInterval(tryStep, delay);
+		if (!async) {
+			while (this.running) this.step(false, true);
+			return;
+		}
+		this.intervalID = setInterval(tryStep, delay || 0);
 	}
 
 	public stop() {
@@ -72,10 +75,11 @@ class Mima {
 		this.finishCallback();
 	}
 
-	public step(single?:boolean): string {
+	public step(single?: boolean, silent?: boolean): string {
 		this.stepNum++;
-		if (this.stepNum >= Mima.MAX_RUNTIME) { this.stop(); throw "Max Runtime reached"; return; }
+		if (this.stepNum >= Mima.MAX_RUNTIME) { this.stop(); this.logCallback("Max Runtime reached, aborting."); return; }
 		var cmd = this.mem[this.pointer++];
+		if (cmd === undefined) { this.stop(); this.logCallback("reached undefined memory, aborting."); return; }
 		var op1 = (cmd >> 20) & 0xF;
 		var cmdout;
 		if (op1 == 0xF) {
@@ -88,9 +92,9 @@ class Mima {
 			MimaCommand.commands[op1].func(this, cmd & 0xFFFFF);
 			cmdout = MimaCommand.commands[op1].name + " " + (cmd & 0xFFFFF);
 		}
-		this.logCallback("Step " + this.stepNum + " at " + this.pointer + ":  " + cmdout + " => " + this.akku);
-		if (this.srcMap[this.pointer - 1] === undefined) console.log("no mapping for mem " + (this.pointer - 1) + " (" + cmdout + ")");
-		this.stepCallback({ pointer: this.pointer - 1, line: this.srcMap[this.pointer - 1] || 0, akku: this.akku, cmd: cmdout });
+		this.logCallback("Step " + this.stepNum + " at " + this.pointer + ":  " + cmdout + " => " + this.akku, silent);
+		//if (this.srcMap[this.pointer - 1] === undefined) console.log("no mapping for mem " + (this.pointer - 1) + " (" + cmdout + ")");
+		if (!silent && (cmd != 0 || this.mem[this.pointer - 2] != 0)) this.stepCallback({ pointer: this.pointer - 1, line: this.srcMap[this.pointer - 1] || 0, akku: this.akku, cmd: cmdout });
 		if (!single && !this.running) this.stop();
 	}
 }
@@ -123,7 +127,7 @@ function parse(input: string): { mem: number[]; start: number; srcMap: { [memInd
 	var srcMap: { [memIndex: number]: number } = {};
 	var pointer = 0;
 	var maxptr = 0;
-	var markers=[];
+	var markers = [];
 	var mem: number[] = [];
 	for (var l = 0; l < inputSplit.length; l++) {
 		if (pointer > maxptr) maxptr = pointer;

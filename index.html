@@ -9,6 +9,7 @@
 textarea{font-family:monospace;height:500px;}
 .edit1{width:49%;display:inline-block;vertical-align:top;}
 .edit2{display:inline-block;vertical-align:top;}
+@media (min-width:1300px) {.container{width:1250px;}
 .CodeMirror {
 border: 1px solid #eee;
 height: auto;
@@ -25,7 +26,7 @@ overflow-x: auto;
 .lint-error {font-family: arial; font-size: 70%; background: #ffa; color: #a00; padding: 2px 5px 3px; }
 .lint-error-icon {color: white; background-color: red; font-weight: bold; border-radius: 50%; padding: 0 3px; margin-right: 7px;}
 </style>
-<div class=container-full>
+<div class=container>
 	<div class=page-header><h2>Mima Compiler and Interpreter</h2>
 	<footer>
 	<a href="https://github.com/phiresky/mima">Source on GitHub</a>
@@ -38,8 +39,9 @@ overflow-x: auto;
 			<button class="btn btn-default" onclick="mima.stop()">Stop</button>
 			<button class="btn btn-default" onclick="step()">Step</button>
 			<button class="btn btn-default" onclick="parseEditor()">Reset/Reparse</button>
+			<button class="btn btn-default" onclick="run(true)">Finish</button>
 		</p>
-	<textarea id=inparea cols=80>
+	<textarea id=inparea cols=70>
 ; Modulo.mima
 ; calculates x mod y and writes the result in z
 
@@ -121,10 +123,10 @@ FIN:    ADD y
 			editor.removeLineClass(curLine,"background","activeline");
 			editor.addLineClass(curLine=step.line+1,"background","activeline");
 		},
-		info.logCallback=function(message,pos) {
-			if(pos===0) outparea.value=message+"\n"+outparea.value;
-			else outparea.value+=message+"\n";
-			outparea.scrollTop=outparea.scrollHeight;
+		info.logCallback=function(message,silent) {
+			/*if(pos===0) outparea.value=message+"\n"+outparea.value;
+			else */outparea.value+=message+"\n";
+			if(!silent)outparea.scrollTop=outparea.scrollHeight;
 		}
 		if(mima) {
 			mima.stop();
@@ -144,11 +146,12 @@ FIN:    ADD y
 		printMem(info.mem);
 	}
 
-	function run() {
+	function run(sync) {
 		if(!mima) {
 			parseEditor();
 		}
-		mima.run(10);
+		if(sync) mima.run(false);
+		else mima.run(true,10);
 	}
 </script>
 <div class=container>
