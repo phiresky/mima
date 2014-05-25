@@ -89,7 +89,6 @@ var Mima = (function () {
             try  {
                 m.step();
             } catch (e) {
-                console.log(e.stack);
                 m.logCallback(e.stack || e);
             }
         }
@@ -119,6 +118,7 @@ var Mima = (function () {
         if (cmd === undefined) {
             this.stop();
             this.logCallback("reached undefined memory, aborting.");
+            return;
         }
         var op1 = (cmd >> 20) & 0xF;
         var cmdout;
@@ -229,7 +229,7 @@ function parse(input) {
     toParse.forEach(function (p) {
         var asInt = constants[p.line[1]];
         if (asInt === undefined) {
-            markers.push({ index: l, message: "unresolable constant " + p.line[1] });
+            markers.push({ index: p.l, message: "unresolable constant " + p.line[1] });
             return;
         }
         mem[p.pointer] = MimaCommand.parseCmd(p.line[0], asInt);

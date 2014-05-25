@@ -59,7 +59,7 @@ class Mima {
 		function tryStep() {
 			try {
 				m.step();
-			} catch (e) { console.log(e.stack); m.logCallback(e.stack || e); }
+			} catch (e) { m.logCallback(e.stack || e); }
 		}
 		if (!async) {
 			while (this.running) this.step(false, true);
@@ -177,7 +177,7 @@ function parse(input: string): { mem: number[]; start: number; srcMap: { [memInd
 	toParse.forEach((p) => {
 		var asInt = constants[p.line[1]];
 		if (asInt === undefined) {
-			markers.push({ index: l, message: "unresolable constant " + p.line[1] });
+			markers.push({ index: p.l, message: "unresolable constant " + p.line[1] });
 			return;
 		}
 		mem[p.pointer] = MimaCommand.parseCmd(p.line[0], asInt);
