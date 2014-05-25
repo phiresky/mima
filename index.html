@@ -1,0 +1,149 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MIMA Interpreter</title>
+<link rel=stylesheet href="lib/bootstrap.min.css">
+<link rel="stylesheet" href="lib/codemirror.css">
+<script src="lib/codemirror.js"></script>
+<script src="mima.js"></script>
+<style>
+textarea{font-family:monospace;height:500px;}
+.edit1{width:49%;display:inline-block;vertical-align:top;}
+.edit2{display:inline-block;vertical-align:top;}
+.CodeMirror {
+border: 1px solid #eee;
+height: auto;
+}
+.container-full { margin-left:20px;}
+.note-gutter { width:3em;}
+.CodeMirror-scroll {
+overflow-y: hidden;
+overflow-x: auto;
+}
+.activeline {
+	background-color:#BCEE68;
+}
+.lint-error {font-family: arial; font-size: 70%; background: #ffa; color: #a00; padding: 2px 5px 3px; }
+.lint-error-icon {color: white; background-color: red; font-weight: bold; border-radius: 50%; padding: 0 3px; margin-right: 7px;}
+</style>
+<div class=container-full>
+	<div class=page-header><h2>Mima Compiler and Interpreter</h2></div>
+<div>
+	<div class="edit1 editx">
+		<p>Code:
+			<button class="btn btn-default" onclick="run()">Run!</button>
+			<button class="btn btn-default" onclick="mima.stop()">Stop</button>
+			<button class="btn btn-default" onclick="step()">Step</button>
+			<button class="btn btn-default" onclick="parseEditor()">Reset/Reparse</button>
+		</p>
+	<textarea id=inparea cols=80>
+; Modulo.mima
+; calculates x mod y and writes the result in z
+
+x DS 567
+y DS 13
+z DS
+
+tmp DS
+
+* = 0x100
+eins DS 1
+
+START:	LDV y
+        NOT
+        ADD eins
+        STV tmp
+        LDV x
+LOOP:   ADD tmp
+        JMN FIN
+		JMP LOOP
+FIN:    ADD y
+        STV z
+        HLT	
+	</textarea>
+	</div>
+	<div class="edit2">
+		<p>Memory:</p>
+		<textarea id=memarea cols=30></textarea>
+	</div>
+	<div class="edit2">
+		<p>Log:</p>
+		<textarea id=outparea cols=40></textarea>
+	</div>
+</div>
+</div>
+<script>
+	var info,mima,curLine=0,widgets=[];
+	var editor=CodeMirror.fromTextArea(inparea, {
+		lineNumbers:true,
+		lineWrapping:true,
+		gutters:["note-gutter"],
+		viewportMargin:Infinity
+	});
+	editor.on("change",parseEditor);
+	function printMem(mem) {
+		memarea.value="";
+		var lastIsNull=false;
+		mem.forEach(function(e,i){
+			if(lastIsNull&&e==0) return;
+			memarea.value+=toHex(i,6)+":    "+toHex(e,6)+"\n";
+			lastIsNull=e==0;
+			if(lastIsNull) memarea.value+="*\n";
+		});
+	}
+
+	function parseEditor() {
+		info=parse(editor.getValue());
+		editor.clearGutter("note-gutter");
+		for(var i=0;i<widgets.length;i++) editor.removeLineWidget(widgets[i]);
+		widgets=[];
+		info.markers.forEach(function(e) {
+			var msg = document.createElement("div");
+			var icon = msg.appendChild(document.createElement("span"));
+			icon.innerHTML = "×";
+			icon.className = "lint-error-icon";
+			msg.appendChild(document.createTextNode(e.message));
+			msg.className = "lint-error";
+			widgets.push(editor.addLineWidget(e.index, msg, {coverGutter: false, noHScroll: true}));
+		});
+		/*for(var i in info.srcMap) {
+			editor.setGutterMarker(info.srcMap[i],"note-gutter",document.createTextNode(toHex(i,4)));
+		}*/
+		printMem(info.mem);
+		info.finishCallback=function() {
+			//outparea.value=log+"\n\n";
+			printMem(info.mem)
+		};
+		info.stepCallback=function(step) {
+			editor.removeLineClass(curLine,"background","activeline");
+			editor.addLineClass(curLine=step.line+1,"background","activeline");
+		},
+		info.logCallback=function(message,pos) {
+			if(pos===0) outparea.value=message+"\n"+outparea.value;
+			else outparea.value+=message+"\n";
+			outparea.scrollTop=outparea.scrollHeight;
+		}
+		if(mima) {
+			mima.stop();
+		}
+		editor.removeLineClass(curLine,"background","activeline");
+		mima=new Mima(info);
+		outparea.value="";
+
+	}
+
+	function step() {
+		if(!mima) {
+			parseEditor();
+		}
+		if(mima.running) mima.stop();
+		mima.step(true);
+		printMem(info.mem);
+	}
+
+	function run() {
+		if(!mima) {
+			parseEditor();
+		}
+		mima.run(10);
+	}
+</script>
