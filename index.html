@@ -39,6 +39,7 @@ overflow-x: auto;
 			<button class="btn btn-default" onclick="mima.stop()">Stop</button>
 			<button class="btn btn-default" onclick="step()">Step</button>
 			<button class="btn btn-default" onclick="parseEditor()">Reset/Reparse</button>
+			<button class="btn btn-default" onclick="run(true)">Finish</button>
 		</p>
 	<textarea id=inparea cols=70>
 ; Modulo.mima
@@ -145,11 +146,12 @@ FIN:    ADD y
 		printMem(info.mem);
 	}
 
-	function run() {
+	function run(sync) {
 		if(!mima) {
 			parseEditor();
 		}
-		mima.run(10);
+		if(sync) mima.run(false);
+		else mima.run(true,10);
 	}
 </script>
 <div class=container>
