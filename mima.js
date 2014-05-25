@@ -1,3 +1,5 @@
+// Mima compiler and interpreter written in TypeScript
+// https://github.com/phiresky/mima
 var MimaCommand = (function () {
     function MimaCommand(name, func) {
         this.name = name;
@@ -80,7 +82,7 @@ var Mima = (function () {
         this.stepCallback = data.stepCallback;
         this.logCallback = data.logCallback;
     }
-    Mima.prototype.run = function (delay) {
+    Mima.prototype.run = function (async, delay) {
         this.running = true;
         var m = this;
         function tryStep() {
@@ -91,7 +93,12 @@ var Mima = (function () {
                 m.logCallback(e.stack || e);
             }
         }
-        this.intervalID = setInterval(tryStep, delay);
+        if (!async) {
+            while (this.running)
+                this.step(false, true);
+            return;
+        }
+        this.intervalID = setInterval(tryStep, delay || 0);
     };
 
     Mima.prototype.stop = function () {
@@ -101,14 +108,18 @@ var Mima = (function () {
         this.finishCallback();
     };
 
-    Mima.prototype.step = function (single) {
+    Mima.prototype.step = function (single, silent) {
         this.stepNum++;
         if (this.stepNum >= Mima.MAX_RUNTIME) {
             this.stop();
-            throw "Max Runtime reached";
+            this.logCallback("Max Runtime reached, aborting.");
             return;
         }
         var cmd = this.mem[this.pointer++];
+        if (cmd === undefined) {
+            this.stop();
+            this.logCallback("reached undefined memory, aborting.");
+        }
         var op1 = (cmd >> 20) & 0xF;
         var cmdout;
         if (op1 == 0xF) {
@@ -123,14 +134,15 @@ var Mima = (function () {
             MimaCommand.commands[op1].func(this, cmd & 0xFFFFF);
             cmdout = MimaCommand.commands[op1].name + " " + (cmd & 0xFFFFF);
         }
-        this.logCallback("Step " + this.stepNum + " at " + this.pointer + ":  " + cmdout + " => " + this.akku);
-        if (this.srcMap[this.pointer - 1] === undefined)
-            console.log("no mapping for mem " + (this.pointer - 1) + " (" + cmdout + ")");
-        this.stepCallback({ pointer: this.pointer - 1, line: this.srcMap[this.pointer - 1] || 0, akku: this.akku, cmd: cmdout });
+        this.logCallback("Step " + this.stepNum + " at " + this.pointer + ":  " + cmdout + " => " + this.akku, silent);
+
+        //if (this.srcMap[this.pointer - 1] === undefined) console.log("no mapping for mem " + (this.pointer - 1) + " (" + cmdout + ")");
+        if (!silent && (cmd != 0 || this.mem[this.pointer - 2] != 0))
+            this.stepCallback({ pointer: this.pointer - 1, line: this.srcMap[this.pointer - 1] || 0, akku: this.akku, cmd: cmdout });
         if (!single && !this.running)
             this.stop();
     };
-    Mima.MAX_RUNTIME = 20000;
+    Mima.MAX_RUNTIME = 10000;
     return Mima;
 })();
 for (var i = 0; i < MimaCommand.commands.length; i++) {

@@ -123,10 +123,10 @@ FIN:    ADD y
 			editor.removeLineClass(curLine,"background","activeline");
 			editor.addLineClass(curLine=step.line+1,"background","activeline");
 		},
-		info.logCallback=function(message,pos) {
-			if(pos===0) outparea.value=message+"\n"+outparea.value;
-			else outparea.value+=message+"\n";
-			outparea.scrollTop=outparea.scrollHeight;
+		info.logCallback=function(message,silent) {
+			/*if(pos===0) outparea.value=message+"\n"+outparea.value;
+			else */outparea.value+=message+"\n";
+			if(!silent)outparea.scrollTop=outparea.scrollHeight;
 		}
 		if(mima) {
 			mima.stop();
