@@ -17,7 +17,7 @@ class MimaCommand {
 		new MimaCommand("JMN", (m, v) => m.pointer = m.akku < 0 ? v : m.pointer),
 		new MimaCommand("LDIV", (m, v) => m.akku = m.mem[m.mem[v]]),
 		new MimaCommand("STIV", (m, v) => m.mem[m.mem[v]] = m.akku),
-		new MimaCommand("OUTPUT", (m, v) => {}),
+		new MimaCommand("OUTPUT", (m, v) => {m.logCallback("OUTPUT: "+m.mem[v])}),
 	];
 	public static fCommands = [
 		new MimaCommand("HLT", (m, v) => { m.running = false; m.pointer--; }),
@@ -199,14 +199,14 @@ function parseToC(input: string): string {
 		"AND": "akku &= mem[$];",
 		"OR": "akku |= mem[$];",
 		"XOR": "akku ^= mem[$];",
-		"EQL": "akku = m.akku == m.mem[$] ? -1 : 0;",
+		"EQL": "akku = akku == mem[$] ? -1 : 0;",
 		"JMP": "goto $;",
 		"JMN": "if(akku<0) goto $;",
-		"LDIV": "akku = mem[m.mem[$]];",
-		"STIV": "mem[m.mem[$]] = m.akku;",
+		"LDIV": "akku = mem[mem[$]];",
+		"STIV": "mem[mem[$]] = akku;",
 		"HLT": "return 0;",
-		"NOT": "akku=~akku;",
-		"RAR": "akku = ((m.akku >> 1) | (m.akku << (23))) & (0xFFFFFF));",
+		"NOT": "akku = ~akku;",
+		"RAR": "akku = ((akku >> 1) | (akku << (23))) & (0xFFFFFF));",
 		"OUTPUT": 'printf("<$> = %d\\n",mem[$]);',
 	}
 	var constants: string[] = [];
@@ -215,6 +215,7 @@ function parseToC(input: string): string {
 	var maxptr = 0;
 	var markers = [];
 	var commands: string[] = [];
+	var alreadyDefined=[];
 	for (var l = 0; l < inputSplit.length; l++) {
 		if (pointer > maxptr) maxptr = pointer;
 		var line = inputSplit[l];
@@ -236,8 +237,13 @@ function parseToC(input: string): string {
 			}
 			var lineSplit = line.splitrim(/\s+/);
 			if (lineSplit[1] && lineSplit[1].toUpperCase() === "DS") {
-				constants.push("int "+lineSplit[0]+" = "+pointer+";");
-				commands.push(labelStr+"mem["+lineSplit[0]+"] = "+(lineSplit[2]||0)+";");
+				if(alreadyDefined.indexOf(lineSplit[0])>=0) {
+					commands.push(labelStr+"mem["+pointer+"] = "+(lineSplit[2]||0)+";");
+				} else {
+					constants.push("int "+lineSplit[0]+" = "+pointer+";");
+					alreadyDefined.push(lineSplit[0]);
+					commands.push(labelStr+"mem["+lineSplit[0]+"] = "+(lineSplit[2]||0)+";");
+				}
 				pointer++;
 				continue;
 			} else if (lineSplit.length === 2) {

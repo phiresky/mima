@@ -40,6 +40,7 @@ overflow-x: auto;
 			<button class="btn btn-default" onclick="step()">Step</button>
 			<button class="btn btn-default" onclick="parseEditor()">Reset/Reparse</button>
 			<button class="btn btn-default" onclick="run(true)">Finish</button>
+			<button class="btn btn-default" onclick="window.open().document.write('<pre>'+parseToC(editor.getValue()).replace(/</g,'&amp;lt;')+'</pre>')">Compile to C</button>
 		</p>
 	<textarea id=inparea cols=70>
 ; Modulo.mima
@@ -64,6 +65,7 @@ LOOP:   ADD tmp
 		JMP LOOP
 FIN:    ADD y
         STV z
+		OUTPUT z ; not a real mima assembler command
         HLT	
 	</textarea>
 	</div>

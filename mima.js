@@ -15,6 +15,10 @@ var MimaCommand = (function () {
             cmd = (cmd << 20) | (value & 0xfffff);
         return cmd;
     };
+
+    MimaCommand.parseConst = function (value) {
+        return parseInt(value) || 0;
+    };
     MimaCommand.commands = [
         new MimaCommand("LDC", function (m, v) {
             return m.akku = v;
@@ -51,6 +55,9 @@ var MimaCommand = (function () {
         }),
         new MimaCommand("STIV", function (m, v) {
             return m.mem[m.mem[v]] = m.akku;
+        }),
+        new MimaCommand("OUTPUT", function (m, v) {
+            m.logCallback("OUTPUT: " + m.mem[v]);
         })
     ];
     MimaCommand.fCommands = [
@@ -201,10 +208,8 @@ function parse(input) {
             var lineSplit = line.splitrim(/\s+/);
             if (lineSplit[1] && lineSplit[1].toUpperCase() === "DS") {
                 constants[lineSplit[0]] = pointer;
-                var i = parseInt(lineSplit[2]) || 0;
                 srcMap[pointer] = l;
-                mem[pointer++] = i; //i&0xffffff;
-
+                mem[pointer++] = MimaCommand.parseConst(lineSplit[2]); //i&0xffffff;
                 continue;
             } else if (lineSplit.length === 2) {
                 var asInt = parseInt(lineSplit[1]);
@@ -239,4 +244,74 @@ function parse(input) {
     if (constants["START"] === undefined)
         markers.push({ index: 0, message: "could not find START label" });
     return { mem: mem, start: constants["START"], srcMap: srcMap, markers: markers };
+}
+
+function parseToC(input) {
+    var cMap = {
+        "LDC": "akku = $;",
+        "LDV": "akku = mem[$];",
+        "STV": "mem[$] = akku;",
+        "ADD": "akku += mem[$];",
+        "AND": "akku &= mem[$];",
+        "OR": "akku |= mem[$];",
+        "XOR": "akku ^= mem[$];",
+        "EQL": "akku = akku == mem[$] ? -1 : 0;",
+        "JMP": "goto $;",
+        "JMN": "if(akku<0) goto $;",
+        "LDIV": "akku = mem[mem[$]];",
+        "STIV": "mem[mem[$]] = akku;",
+        "HLT": "return 0;",
+        "NOT": "akku = ~akku;",
+        "RAR": "akku = ((akku >> 1) | (akku << (23))) & (0xFFFFFF));",
+        "OUTPUT": 'printf("<$> = %d\\n",mem[$]);'
+    };
+    var constants = [];
+    var inputSplit = input.splitrim("\n");
+    var pointer = 0;
+    var maxptr = 0;
+    var markers = [];
+    var commands = [];
+    var alreadyDefined = [];
+    for (var l = 0; l < inputSplit.length; l++) {
+        if (pointer > maxptr)
+            maxptr = pointer;
+        var line = inputSplit[l];
+        var comment = line.splitrim(";");
+        if (comment.length > 1)
+            line = comment[0];
+        if (line.length === 0)
+            continue;
+        var equals = line.splitrim("=");
+        if (equals.length > 1) {
+            if (equals[0] === "*")
+                pointer = parseInt(equals[1]);
+            else
+                constants.push("int " + equals[0] + " = " + (parseInt(equals[1]) & 0xfffff) + ";");
+        } else {
+            var label = line.splitrim(":");
+            var labelStr = "";
+            if (label.length > 1) {
+                labelStr = "\n" + label[0] + ":\n\t";
+                line = label[1];
+            }
+            var lineSplit = line.splitrim(/\s+/);
+            if (lineSplit[1] && lineSplit[1].toUpperCase() === "DS") {
+                if (alreadyDefined.indexOf(lineSplit[0]) >= 0) {
+                    commands.push(labelStr + "mem[" + pointer + "] = " + (lineSplit[2] || 0) + ";");
+                } else {
+                    constants.push("int " + lineSplit[0] + " = " + pointer + ";");
+                    alreadyDefined.push(lineSplit[0]);
+                    commands.push(labelStr + "mem[" + lineSplit[0] + "] = " + (lineSplit[2] || 0) + ";");
+                }
+                pointer++;
+                continue;
+            } else if (lineSplit.length === 2) {
+                var val = lineSplit[1];
+            } else if (lineSplit.length === 1) {
+                val = "" + 0;
+            }
+            commands.push(labelStr + cMap[lineSplit[0]].replace(/\$/g, val));
+        }
+    }
+    return "#include <stdio.h>\nint akku=0;\nint mem[" + (maxptr + 1) + "];\n\nint main() {\n\t" + constants.join("\n\t") + "\n\n\t" + commands.join("\n\t") + "\n}\n";
 }
