@@ -17,6 +17,7 @@ class MimaCommand {
 		new MimaCommand("JMN", (m, v) => m.pointer = m.akku < 0 ? v : m.pointer),
 		new MimaCommand("LDIV", (m, v) => m.akku = m.mem[m.mem[v]]),
 		new MimaCommand("STIV", (m, v) => m.mem[m.mem[v]] = m.akku),
+		new MimaCommand("OUTPUT", (m, v) => {}),
 	];
 	public static fCommands = [
 		new MimaCommand("HLT", (m, v) => { m.running = false; m.pointer--; }),
@@ -25,12 +26,16 @@ class MimaCommand {
 	];
 	public static commandsRev: { [name: string]: number } = {};
 
-	static parseCmd(command: string, value: number) {
+	static parseCmd(command: string, value: number): number {
 		var cmd = MimaCommand.commandsRev[command];
 		if (cmd === undefined) return null;
 		if (cmd >= 0xf) cmd = (cmd << 16) | (value & 0xffff);
 		else cmd = (cmd << 20) | (value & 0xfffff);
 		return cmd;
+	}
+
+	static parseConst(value: string): number {
+		return parseInt(value) || 0;
 	}
 }
 
@@ -150,10 +155,8 @@ function parse(input: string): { mem: number[]; start: number; srcMap: { [memInd
 			var lineSplit = line.splitrim(/\s+/);
 			if (lineSplit[1] && lineSplit[1].toUpperCase() === "DS") {
 				constants[lineSplit[0]] = pointer;
-				var i = parseInt(lineSplit[2]) || 0;
 				srcMap[pointer] = l;
-				mem[pointer++] = i;//i&0xffffff;
-
+				mem[pointer++] = MimaCommand.parseConst(lineSplit[2]);//i&0xffffff;
 				continue;
 			} else if (lineSplit.length === 2) {
 				var asInt = parseInt(lineSplit[1]);
@@ -186,3 +189,65 @@ function parse(input: string): { mem: number[]; start: number; srcMap: { [memInd
 	if (constants["START"] === undefined) markers.push({ index: 0, message: "could not find START label" });
 	return { mem: mem, start: constants["START"], srcMap: srcMap, markers: markers };
 }
+
+function parseToC(input: string): string {
+	var cMap = {
+		"LDC": "akku = $;",
+		"LDV": "akku = mem[$];",
+		"STV": "mem[$] = akku;",
+		"ADD": "akku += mem[$];",
+		"AND": "akku &= mem[$];",
+		"OR": "akku |= mem[$];",
+		"XOR": "akku ^= mem[$];",
+		"EQL": "akku = m.akku == m.mem[$] ? -1 : 0;",
+		"JMP": "goto $;",
+		"JMN": "if(akku<0) goto $;",
+		"LDIV": "akku = mem[m.mem[$]];",
+		"STIV": "mem[m.mem[$]] = m.akku;",
+		"HLT": "return 0;",
+		"NOT": "akku=~akku;",
+		"RAR": "akku = ((m.akku >> 1) | (m.akku << (23))) & (0xFFFFFF));",
+		"OUTPUT": 'printf("<$> = %d\\n",mem[$]);',
+	}
+	var constants: string[] = [];
+	var inputSplit = input.splitrim("\n");
+	var pointer = 0;
+	var maxptr = 0;
+	var markers = [];
+	var commands: string[] = [];
+	for (var l = 0; l < inputSplit.length; l++) {
+		if (pointer > maxptr) maxptr = pointer;
+		var line = inputSplit[l];
+		var comment = line.splitrim(";");
+		if (comment.length > 1) line = comment[0];
+		if (line.length === 0) continue;
+		var equals = line.splitrim("=");
+		if (equals.length > 1) { // Constant or movement
+			if (equals[0] === "*") // movement
+				pointer = parseInt(equals[1]);
+			else // constant
+				constants.push("int "+equals[0]+" = "+(parseInt(equals[1]) & 0xfffff)+";");
+		} else { // datastore or statement
+			var label = line.splitrim(":");
+			var labelStr = "";
+			if (label.length > 1) {
+				labelStr="\n"+label[0]+":\n\t";
+				line = label[1];
+			}
+			var lineSplit = line.splitrim(/\s+/);
+			if (lineSplit[1] && lineSplit[1].toUpperCase() === "DS") {
+				constants.push("int "+lineSplit[0]+" = "+pointer+";");
+				commands.push(labelStr+"mem["+lineSplit[0]+"] = "+(lineSplit[2]||0)+";");
+				pointer++;
+				continue;
+			} else if (lineSplit.length === 2) {
+				var val = lineSplit[1];
+			} else if (lineSplit.length === 1) {
+				val = ""+0;
+			}
+			commands.push(labelStr+cMap[lineSplit[0]].replace(/\$/g,val));
+		}
+	}
+	return "#include <stdio.h>\nint akku=0;\nint mem["+(maxptr+1)+"];\n\nint main() {\n\t"+constants.join("\n\t")+"\n\n\t"+commands.join("\n\t")+"\n}\n";
+}
+
