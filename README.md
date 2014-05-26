@@ -1,7 +1,7 @@
 MIMA Simulator / Interpreter / ↦C-Compiler
 =========
 
-[Hosted Version](phiresky.github.io/mima/?arraysort.mima)
+[Hosted Version](http://phiresky.github.io/mima/?arraysort.mima)
 
 A webpage to make testing/running/debugging/verifying code for the MIMA Architecture that is used in teaching at the Karlsruhe Institute of Technology easier.
 
