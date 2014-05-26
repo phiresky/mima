@@ -6,6 +6,10 @@ var MimaCommand = (function () {
         this.func = func;
     }
     MimaCommand.parseCmd = function (command, value) {
+        if (command == 'DS')
+            return value;
+        if (command == 'HALT')
+            return MimaCommand.parseCmd('HLT', value);
         var cmd = MimaCommand.commandsRev[command];
         if (cmd === undefined)
             return null;
@@ -17,6 +21,9 @@ var MimaCommand = (function () {
     };
 
     MimaCommand.parseConst = function (value) {
+        if (!value)
+            return 0;
+        value = value.replace(/\$/, '0x');
         return parseInt(value) || 0;
     };
     MimaCommand.commands = [
@@ -196,9 +203,9 @@ function parse(input) {
         var equals = line.splitrim("=");
         if (equals.length > 1) {
             if (equals[0] === "*")
-                pointer = parseInt(equals[1]);
+                pointer = MimaCommand.parseConst(equals[1]);
             else
-                constants[equals[0]] = parseInt(equals[1]) & 0xfffff;
+                constants[equals[0]] = MimaCommand.parseConst(equals[1]) & 0xfffff;
         } else {
             var label = line.splitrim(":");
             if (label.length > 1) {
@@ -263,13 +270,13 @@ function parseToC(input) {
         "HLT": "return 0;",
         "NOT": "akku = ~akku;",
         "RAR": "akku = ((akku >> 1) | (akku << (23))) & (0xFFFFFF));",
+        // unofficial commands
         "OUTPUT": 'printf("<$> = %d\\n",mem[$]);'
     };
     var constants = [];
     var inputSplit = input.splitrim("\n");
     var pointer = 0;
     var maxptr = 0;
-    var markers = [];
     var commands = [];
     var alreadyDefined = [];
     for (var l = 0; l < inputSplit.length; l++) {

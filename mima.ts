@@ -27,6 +27,8 @@ class MimaCommand {
 	public static commandsRev: { [name: string]: number } = {};
 
 	static parseCmd(command: string, value: number): number {
+		if(command=='DS') return value;
+		if(command=='HALT') return MimaCommand.parseCmd('HLT',value);
 		var cmd = MimaCommand.commandsRev[command];
 		if (cmd === undefined) return null;
 		if (cmd >= 0xf) cmd = (cmd << 16) | (value & 0xffff);
@@ -35,6 +37,8 @@ class MimaCommand {
 	}
 
 	static parseConst(value: string): number {
+		if(!value) return 0;
+		value = value.replace(/\$/,'0x');
 		return parseInt(value) || 0;
 	}
 }
@@ -143,9 +147,9 @@ function parse(input: string): { mem: number[]; start: number; srcMap: { [memInd
 		var equals = line.splitrim("=");
 		if (equals.length > 1) { // Constant or movement
 			if (equals[0] === "*") // movement
-				pointer = parseInt(equals[1]);
+				pointer = MimaCommand.parseConst(equals[1]);
 			else // constant
-				constants[equals[0]] = parseInt(equals[1]) & 0xfffff;
+				constants[equals[0]] = MimaCommand.parseConst(equals[1]) & 0xfffff;
 		} else { // datastore or statement
 			var label = line.splitrim(":");
 			if (label.length > 1) {
@@ -207,13 +211,13 @@ function parseToC(input: string): string {
 		"HLT": "return 0;",
 		"NOT": "akku = ~akku;",
 		"RAR": "akku = ((akku >> 1) | (akku << (23))) & (0xFFFFFF));",
+		// unofficial commands
 		"OUTPUT": 'printf("<$> = %d\\n",mem[$]);',
 	}
 	var constants: string[] = [];
 	var inputSplit = input.splitrim("\n");
 	var pointer = 0;
 	var maxptr = 0;
-	var markers = [];
 	var commands: string[] = [];
 	var alreadyDefined=[];
 	for (var l = 0; l < inputSplit.length; l++) {
