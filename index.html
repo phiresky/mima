@@ -169,7 +169,7 @@ if(location.search) {
 	var r = new XMLHttpRequest();
 	r.open('GET', location.search.substr(1), true);
 	r.onload = function() {
-		editor.setValue(request.responseText); }
+		editor.setValue(r.responseText); }
 	r.send();
 };
 </script>
