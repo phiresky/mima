@@ -167,7 +167,7 @@ ga('require', 'displayfeatures');
 ga('send', 'pageview');
 if(location.search) {
 	var r = new XMLHttpRequest();
-	r.open('GET', location.search.substr(1), true);
+	r.open('GET', location.search.substr(1).replace(/=/g,""), true);
 	r.onload = function() {
 		editor.setValue(r.responseText); }
 	r.send();
