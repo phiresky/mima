@@ -19,70 +19,35 @@ var MimaCommand = (function () {
             cmd = (cmd << 20) | (value & 0xfffff);
         return cmd;
     };
-
     MimaCommand.parseConst = function (value) {
         if (!value)
             return 0;
         value = value.replace(/\$/, '0x');
         return parseInt(value) || 0;
     };
-    MimaCommand.commands = [
-        new MimaCommand("LDC", function (m, v) {
-            return m.akku = v;
-        }),
-        new MimaCommand("LDV", function (m, v) {
-            return m.akku = m.mem[v];
-        }),
-        new MimaCommand("STV", function (m, v) {
-            return m.mem[v] = m.akku;
-        }),
-        new MimaCommand("ADD", function (m, v) {
-            return m.akku += m.mem[v];
-        }),
-        new MimaCommand("AND", function (m, v) {
-            return m.akku &= m.mem[v];
-        }),
-        new MimaCommand("OR", function (m, v) {
-            return m.akku |= m.mem[v];
-        }),
-        new MimaCommand("XOR", function (m, v) {
-            return m.akku ^= m.mem[v];
-        }),
-        new MimaCommand("EQL", function (m, v) {
-            return m.akku = m.akku === m.mem[v] ? -1 : 0;
-        }),
-        new MimaCommand("JMP", function (m, v) {
-            return m.pointer = v;
-        }),
-        new MimaCommand("JMN", function (m, v) {
-            return m.pointer = m.akku < 0 ? v : m.pointer;
-        }),
-        new MimaCommand("LDIV", function (m, v) {
-            return m.akku = m.mem[m.mem[v]];
-        }),
-        new MimaCommand("STIV", function (m, v) {
-            return m.mem[m.mem[v]] = m.akku;
-        }),
-        new MimaCommand("OUTPUT", function (m, v) {
-            m.logCallback("OUTPUT: " + m.mem[v]);
-        })
-    ];
-    MimaCommand.fCommands = [
-        new MimaCommand("HLT", function (m, v) {
-            m.running = false;
-            m.pointer--;
-        }),
-        new MimaCommand("NOT", function (m, v) {
-            return m.akku = ~m.akku;
-        }),
-        new MimaCommand("RAR", function (m, v) {
-            return m.akku = ((m.akku >>> 1) | (m.akku << (23))) & (0xFFFFFF);
-        })
-    ];
-    MimaCommand.commandsRev = {};
     return MimaCommand;
-})();
-
+}());
+MimaCommand.commands = [
+    new MimaCommand("LDC", function (m, v) { return m.akku = v; }),
+    new MimaCommand("LDV", function (m, v) { return m.akku = m.mem[v]; }),
+    new MimaCommand("STV", function (m, v) { return m.mem[v] = m.akku; }),
+    new MimaCommand("ADD", function (m, v) { return m.akku += m.mem[v]; }),
+    new MimaCommand("AND", function (m, v) { return m.akku &= m.mem[v]; }),
+    new MimaCommand("OR", function (m, v) { return m.akku |= m.mem[v]; }),
+    new MimaCommand("XOR", function (m, v) { return m.akku ^= m.mem[v]; }),
+    new MimaCommand("EQL", function (m, v) { return m.akku = m.akku === m.mem[v] ? -1 : 0; }),
+    new MimaCommand("JMP", function (m, v) { return m.pointer = v; }),
+    new MimaCommand("JMN", function (m, v) { return m.pointer = m.akku < 0 ? v : m.pointer; }),
+    new MimaCommand("LDIV", function (m, v) { return m.akku = m.mem[m.mem[v]]; }),
+    new MimaCommand("STIV", function (m, v) { return m.mem[m.mem[v]] = m.akku; }),
+    new MimaCommand("OUTPUT", function (m, v) { m.logCallback("OUTPUT: " + m.mem[v]); }),
+];
+MimaCommand.fCommands = [
+    new MimaCommand("HLT", function (m, v) { m.running = false; m.pointer--; }),
+    new MimaCommand("NOT", function (m, v) { return m.akku = ~m.akku; }),
+    new MimaCommand("RAR", function (m, v) { return m.akku = (m.akku >>> 1) | (m.akku << 23); }),
+];
+MimaCommand.commandsRev = {};
 var Mima = (function () {
     function Mima(data) {
         this.pointer = 0;
@@ -100,9 +65,10 @@ var Mima = (function () {
         this.running = true;
         var m = this;
         function tryStep() {
-            try  {
+            try {
                 m.step();
-            } catch (e) {
+            }
+            catch (e) {
                 m.logCallback(e.stack || e);
             }
         }
@@ -113,14 +79,12 @@ var Mima = (function () {
         }
         this.intervalID = setInterval(tryStep, delay || 0);
     };
-
     Mima.prototype.stop = function () {
         clearInterval(this.intervalID);
         this.running = false;
         this.logCallback("Mima halted after " + this.stepNum + " Steps at address " + this.pointer);
         this.finishCallback();
     };
-
     Mima.prototype.step = function (single, silent) {
         this.stepNum++;
         if (this.stepNum >= Mima.MAX_RUNTIME) {
@@ -142,30 +106,30 @@ var Mima = (function () {
                 throw "invalid command: F" + op2;
             MimaCommand.fCommands[op2].func(this, cmd & 0xFFFF);
             cmdout = MimaCommand.fCommands[op2].name + " " + (cmd & 0xFFFF);
-        } else {
+        }
+        else {
             if (!MimaCommand.commands[op1])
                 throw "invalid command: " + op1;
             MimaCommand.commands[op1].func(this, cmd & 0xFFFFF);
             cmdout = MimaCommand.commands[op1].name + " " + (cmd & 0xFFFFF);
         }
+        this.akku &= 0xFFFFFF;
         this.logCallback("Step " + this.stepNum + " at " + this.pointer + ":  " + cmdout + " => " + this.akku, silent);
-
         //if (this.srcMap[this.pointer - 1] === undefined) console.log("no mapping for mem " + (this.pointer - 1) + " (" + cmdout + ")");
         if (!silent && (cmd != 0 || this.mem[this.pointer - 2] != 0))
             this.stepCallback({ pointer: this.pointer - 1, line: this.srcMap[this.pointer - 1] || 0, akku: this.akku, cmd: cmdout });
         if (!single && !this.running)
             this.stop();
     };
-    Mima.MAX_RUNTIME = 10000;
     return Mima;
-})();
+}());
+Mima.MAX_RUNTIME = 10000;
 for (var i = 0; i < MimaCommand.commands.length; i++) {
     MimaCommand.commandsRev[MimaCommand.commands[i].name] = i;
 }
 for (var i = 0; i < MimaCommand.fCommands.length; i++) {
     MimaCommand.commandsRev[MimaCommand.fCommands[i].name] = i + 0xF0;
 }
-
 function toHex(i, length) {
     if (i < 0)
         i = ((~(-i)) & ((1 << 4 * length) - 1)) + 1;
@@ -174,14 +138,12 @@ function toHex(i, length) {
         str = '0' + str;
     return "0x" + str;
 }
-
 String.prototype.splitrim = function (sep) {
     var output = this.split(sep);
     for (var i = 0; i < output.length; i++)
         output[i] = output[i].trim();
     return output;
 };
-
 function parse(input) {
     var constants = {};
     var toParse = [];
@@ -206,7 +168,8 @@ function parse(input) {
                 pointer = MimaCommand.parseConst(equals[1]);
             else
                 constants[equals[0]] = MimaCommand.parseConst(equals[1]) & 0xfffff;
-        } else {
+        }
+        else {
             var label = line.splitrim(":");
             if (label.length > 1) {
                 constants[label[0]] = pointer;
@@ -218,23 +181,27 @@ function parse(input) {
                 srcMap[pointer] = l;
                 mem[pointer++] = MimaCommand.parseConst(lineSplit[2]); //i&0xffffff;
                 continue;
-            } else if (lineSplit.length === 2) {
+            }
+            else if (lineSplit.length === 2) {
                 var asInt = parseInt(lineSplit[1]);
                 if (isNaN(asInt)) {
                     asInt = constants[lineSplit[1]];
                     if (asInt === undefined)
                         toParse.push({ l: l, line: lineSplit, pointer: pointer });
                 }
-            } else if (lineSplit.length === 1) {
+            }
+            else if (lineSplit.length === 1) {
                 asInt = 0;
-            } else if (lineSplit.length > 3) {
+            }
+            else if (lineSplit.length > 3) {
                 markers.push({ index: l, message: "invalid line" });
             }
             srcMap[pointer] = l;
             var parsed = MimaCommand.parseCmd(lineSplit[0], asInt);
             if (parsed === null) {
                 markers.push({ index: l, message: "unknown command " + lineSplit });
-            } else
+            }
+            else
                 mem[pointer++] = parsed;
         }
     }
@@ -252,7 +219,6 @@ function parse(input) {
         markers.push({ index: 0, message: "could not find START label" });
     return { mem: mem, start: constants["START"], srcMap: srcMap, markers: markers };
 }
-
 function parseToC(input) {
     var cMap = {
         "LDC": "akku = $;",
@@ -294,7 +260,8 @@ function parseToC(input) {
                 pointer = parseInt(equals[1]);
             else
                 constants.push("int " + equals[0] + " = " + (parseInt(equals[1]) & 0xfffff) + ";");
-        } else {
+        }
+        else {
             var label = line.splitrim(":");
             var labelStr = "";
             if (label.length > 1) {
@@ -305,16 +272,19 @@ function parseToC(input) {
             if (lineSplit[1] && lineSplit[1].toUpperCase() === "DS") {
                 if (alreadyDefined.indexOf(lineSplit[0]) >= 0) {
                     commands.push(labelStr + "mem[" + pointer + "] = " + (lineSplit[2] || 0) + ";");
-                } else {
+                }
+                else {
                     constants.push("int " + lineSplit[0] + " = " + pointer + ";");
                     alreadyDefined.push(lineSplit[0]);
                     commands.push(labelStr + "mem[" + lineSplit[0] + "] = " + (lineSplit[2] || 0) + ";");
                 }
                 pointer++;
                 continue;
-            } else if (lineSplit.length === 2) {
+            }
+            else if (lineSplit.length === 2) {
                 var val = lineSplit[1];
-            } else if (lineSplit.length === 1) {
+            }
+            else if (lineSplit.length === 1) {
                 val = "" + 0;
             }
             commands.push(labelStr + cMap[lineSplit[0]].replace(/\$/g, val));
