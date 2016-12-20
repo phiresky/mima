@@ -22,7 +22,7 @@ class MimaCommand {
 	public static fCommands = [
 		new MimaCommand("HLT", (m, v) => { m.running = false; m.pointer--; }),
 		new MimaCommand("NOT", (m, v) => m.akku = ~m.akku),
-		new MimaCommand("RAR", (m, v) => m.akku = (m.akku >>> 1) | (m.akku << 23)),
+		new MimaCommand("RAR", (m, v) => m.akku = ((m.akku >>> 1) | (m.akku << (23))) & (0xFFFFFF)),
 	];
 	public static commandsRev: { [name: string]: number } = {};
 
@@ -101,7 +101,6 @@ class Mima {
 			MimaCommand.commands[op1].func(this, cmd & 0xFFFFF);
 			cmdout = MimaCommand.commands[op1].name + " " + (cmd & 0xFFFFF);
 		}
-		this.akku &= 0xFFFFFF;
 		this.logCallback("Step " + this.stepNum + " at " + this.pointer + ":  " + cmdout + " => " + this.akku, silent);
 		//if (this.srcMap[this.pointer - 1] === undefined) console.log("no mapping for mem " + (this.pointer - 1) + " (" + cmdout + ")");
 		if (!silent && (cmd != 0 || this.mem[this.pointer - 2] != 0)) this.stepCallback({ pointer: this.pointer - 1, line: this.srcMap[this.pointer - 1] || 0, akku: this.akku, cmd: cmdout });
